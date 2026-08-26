@@ -1,80 +1,143 @@
-# maze_robot_sim — Simulation Gazebo Harmonic + ROS 2 Jazzy
+<div align="center">
 
-Simulation d'un robot mobile **différentiel** (0.25 m × 0.25 m) naviguant dans un **labyrinthe** (cellules 0.4 m × 0.4 m) du **start** au **goal**, avec **IMU** + **2 encodeurs de roue** (via `ros2_control`), un **marqueur ArUco ID=0**, et un **drone Crazyflie optionnel** (caméra top-down, suivi temps réel et atterrissage automatique).
+# 🤖 maze-robot-drone-sim
 
----
+### Gazebo Harmonic + ROS 2 Jazzy — Autonomous Maze Navigation with ArUco Drone Tracking
 
-## 🎯 L'Approche Utilisée : Ce qui est Indépendant vs Coordonné
+[![ROS2](https://img.shields.io/badge/ROS2-Jazzy-blue?logo=ros)](https://docs.ros.org/en/jazzy/)
+[![Gazebo](https://img.shields.io/badge/Gazebo-Harmonic-orange?logo=gazebo)](https://gazebosim.org/)
+[![Python](https://img.shields.io/badge/Python-3.12-yellow?logo=python)](https://www.python.org/)
+[![OpenCV](https://img.shields.io/badge/OpenCV-ArUco-green?logo=opencv)](https://opencv.org/)
+[![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 
-Le système est conçu autour d'une architecture modulaire où certaines briques fonctionnent en totale autonomie, tandis que d'autres coopèrent via le système de messagerie ROS 2.
-
-### 1. Ce qui est INDÉPENDANT (Découplage)
-* **Génération du Labyrinthe (`maze_world_generator.py`)** : Ce script mathématique génère le monde 3D (fichier `.sdf`) et calcule le chemin idéal via l'algorithme A* (fichier `.json`). Il n'a besoin ni de ROS ni de Gazebo pour fonctionner.
-* **Le Robot au Sol (`maze_navigator_node`)** : Le robot est complètement **aveugle au drone**. Son seul objectif est de lire le chemin A* généré, et d'utiliser ses roues (odométrie) pour suivre les waypoints jusqu'à la ligne d'arrivée. Que le drone soit là, en panne, ou absent, le robot fera son parcours de manière autonome.
-* **Le Modèle de Vol du Drone** : Le drone utilise un plugin Gazebo pur (`gz-sim-velocity-control-system`) qui réagit à des commandes géométriques. Il n'a aucune intelligence embarquée dans son modèle physique.
-
-### 2. Ce qui FONCTIONNE ENSEMBLE (Coopération)
-* **L'Asservissement Visuel (Le Drone suit le Robot)** : Le nœud du drone (`drone_mapper_node`) est totalement **dépendant** du robot. Il regarde le sol avec sa caméra, détecte le marqueur ArUco collé sur le toit du robot, et calcule l'erreur en X/Y pour ajuster sa propre vitesse et rester parfaitement au-dessus de lui. Si le robot accélère, le drone accélère. Si le robot tourne, le drone corrige sa trajectoire.
-* **La Synchronisation de Fin de Parcours** : Comment le drone sait-il quand atterrir ? Le robot et le drone se parlent via un topic ROS (`/maze_navigator/status`). Quand le robot atteint le but, il crie `"GOAL_REACHED"`. Le drone écoute ce topic, comprend que la mission est terminée, et déclenche sa séquence de descente (`LANDING`) pile sur le robot.
+</div>
 
 ---
 
-## ⚙️ Workflow et Processus : Comment ça se déroule ?
+## 🎬 Simulation en action
 
-Voici la chronologie exacte de ce qui se passe quand vous lancez la simulation (via `./run_sim.sh spawn_drone:=true`) :
+| Phase 1 — Démarrage & Décollage | Phase 2 — Navigation du Robot |
+|:---:|:---:|
+| ![start](media/sim_01_start.png) | ![takeoff](media/sim_02_takeoff.png) |
+| Le drone décolle au-dessus du robot | Le robot commence sa navigation A* |
 
-### Phase 1 : Initialisation & Création du Monde
-1. **Génération** : Le script de lancement appelle le générateur Python. Un labyrinthe aléatoire est créé (SDF) et la solution A* est sauvegardée en JSON.
-2. **Apparition (Spawn)** : Gazebo démarre. Le robot apparaît au point de départ (start). Le drone apparaît exactement au-dessus du robot, à 1 mètre d'altitude.
+| Phase 3 — Suivi ArUco (Tracking) | Phase 4 — Arrivée au Goal |
+|:---:|:---:|
+| ![tracking](media/sim_03_tracking.png) | ![goal](media/sim_04_goal.png) |
+| Le drone suit le robot via sa caméra | Le robot atteint le goal (🔴) et le drone atterrit |
 
-### Phase 2 : Décollage et Cartographie
-3. **Le Robot s'auto-calibre** : Le robot fait une micro-rotation sur lui-même pour vérifier le sens de ses encodeurs de roues (auto-calibration odométrique).
-4. **Le Drone décolle (`TAKEOFF`)** : Pendant que le robot se prépare, le drone allume ses moteurs virtuels et monte à 1 mètre d'altitude.
-5. **Observation (`HOVER_MAP`)** : Le drone se stabilise pendant 3 secondes pour (théoriquement) photographier le labyrinthe.
+> **Vert** = Start · **Rouge** = Goal · **Petit cube bleu** = Drone Crazyflie · **Robot gris** = Robot différentiel avec marqueur ArUco
 
-### Phase 3 : La Traque (Tracking)
-6. **Navigation du Robot** : Le robot entame son parcours de manière fluide, ajustant sa vitesse automatiquement dans les virages pour ne pas toucher les murs.
-7. **Suivi du Drone (`TRACKING`)** : La caméra du drone (qui pointe désormais parfaitement vers le sol grâce à une rotation de Pitch=90°, Yaw=180°) repère le marqueur ArUco du robot à 30 images par seconde. 
+---
 
-#### 🔍 Comment fonctionne le suivi d'objet (Visual Servoing) ?
+## 📋 Vue d'ensemble
+
+Ce projet simule un **robot mobile différentiel** naviguant de manière autonome dans un labyrinthe généré procéduralement, suivi en temps réel par un **drone Crazyflie** équipé d'une caméra orientée vers le bas.
+
+### Fonctionnalités clés
+
+| Feature | Description |
+|---|---|
+| 🗺️ **Génération de labyrinthe** | DFS randomisé → monde SDF + chemin A* en JSON |
+| 🤖 **Navigation autonome** | Contrôleur go-to-goal avec auto-calibration odométrique |
+| 🚁 **Drone de suivi** | Machine à états TAKEOFF → HOVER → TRACKING → LANDING |
+| 👁️ **Vision par ordinateur** | Asservissement visuel ArUco ID 0 (DICT_4X4_50) temps réel |
+| 📡 **Communication ROS 2** | Topics inter-noeuds via `/maze_navigator/status` |
+
+---
+
+## 🏗️ Architecture
+
+```
+maze_robot_sim/
+├── maze_robot_sim/
+│   ├── maze_world_generator.py   # Génération SDF + solution A*
+│   ├── maze_navigator_node.py    # Navigation A* + auto-calibration
+│   └── drone_mapper_node.py      # Machine à états drone + ArUco tracking
+├── description/
+│   ├── robot_core.xacro          # Robot différentiel + ArUco marker
+│   ├── robot_ros2_control.xacro  # Interface ros2_control
+│   ├── crazyflie_model.sdf       # Modèle SDF du drone Crazyflie
+│   └── crazyflie.urdf.xacro      # URDF du drone
+├── launch/
+│   └── maze_sim.launch.py        # Launch principal
+├── config/
+│   └── diff_drive_controller.yaml
+├── worlds/                       # Monde SDF généré automatiquement
+├── media/                        # Captures d'écran de la simulation
+└── run_sim.sh                    # Script de lancement simplifié
+```
+
+---
+
+## ⚙️ Comment ça fonctionne
+
+### Architecture modulaire : Indépendant vs Coopératif
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  INDÉPENDANT                                                  │
+│  ┌─────────────────────┐   ┌──────────────────────────────┐  │
+│  │  maze_world_generator│   │   maze_navigator_node         │  │
+│  │  DFS + A* → SDF+JSON│   │   Lit chemin A* → suit WP     │  │
+│  │  (no ROS, no Gazebo) │   │   Aveugle au drone            │  │
+│  └─────────────────────┘   └──────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│  COOPÉRATIF (via ROS 2)                                       │
+│                                                               │
+│  Robot  ──► /maze_navigator/status ──► Drone                 │
+│    │              GOAL_REACHED               │                │
+│    │                                    ▼   │                │
+│    └──── ArUco marker ◄── camera ─── LANDING│                │
+│                   (asservissement visuel)                     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Séquence complète d'une simulation
+
+```
+① Génération : Labyrinthe aléatoire (DFS) → SDF + chemin A* (JSON)
+② Spawn      : Robot au start · Drone au-dessus du robot (z=1m)
+③ Calibration: Micro-rotation du robot → détection auto convention angulaire
+④ Takeoff    : Drone monte à 1m d'altitude (feedback altitude réelle Gazebo)
+⑤ Hover Map  : Drone stationnaire 3s au-dessus du labyrinthe
+⑥ Tracking   : Robot navigue A* · Drone suit via ArUco (P-controller 30Hz)
+⑦ Goal       : Robot publie GOAL_REACHED · Drone déclenche LANDING
+⑧ Landing    : Descente progressive avec centrage ArUco · Moteurs stop
+```
+
+### Comment fonctionne le suivi visuel (Visual Servoing)
+
 Le drone utilise un **asservissement visuel en boucle fermée** :
-- **Détection** : L'image est convertie en noir & blanc et `cv2.aruco.ArucoDetector` trouve le centre exact du marqueur ID 0.
-- **Erreur (ex, ey)** : Le drone calcule l'écart entre ce marqueur et le centre parfait de sa caméra, normalisé de -1 à 1. 
-  - `ex > 0` : le marqueur est à droite.
-  - `ey < 0` : le marqueur est en haut de l'image.
-- **Contrôle Proportionnel (P)** : Le nœud transforme cette erreur d'image en commande physique :
-  - Si le marqueur est "en haut" (`ey < 0`, donc le robot avance physiquement), le drone commande `vx > 0` pour avancer et le rattraper.
-  - Si le marqueur est "à droite" (`ex > 0`, donc le robot est décalé à gauche), le drone commande `vy > 0` pour translater vers la gauche.
-- **Résultat** : Plus le marqueur s'éloigne du centre, plus le drone corrige vite (jusqu'à une vitesse max). Dès qu'il se rapproche du centre, le drone ralentit. C'est ce qui lui permet de "surfer" au-dessus du robot avec autant de fluidité !
 
-### Phase 4 : Atterrissage
-8. **Fin du Labyrinthe** : Le robot atteint la dernière cellule et s'arrête. Il publie le statut `GOAL_REACHED`.
-9. **Descente (`LANDING`)** : Le drone reçoit le signal. Il abaisse doucement son altitude cible (0.12m) tout en continuant à centrer le marqueur ArUco pour atterrir précisément sur le toit du robot.
-10. **Mission Terminée (`DONE`)** : Les moteurs du drone se coupent.
-
----
-
-## 🛠 Architecture du Système (Technique)
-
-- **Robot au sol (`maze_robot`)** :
-  - Dimensions : 0.25 m × 0.25 m × 0.08 m.
-  - Marqueur ArUco ID 0 (dictionnaire `DICT_4X4_50`) fixé sur le toit (`aruco_marker_link`).
-  - Capteurs : IMU (`/imu`) et encodeurs de roues (`/joint_states`).
-  - Contrôle : `diff_drive_controller` (`ros2_control`) via `/diff_drive_controller/cmd_vel`.
-
-- **Drone aérien (`crazyflie`)** *(Optionnel via `spawn_drone:=true`)* :
-  - Modèle quadricoptère léger équivalent Crazyflie 2.x.
-  - Vol contrôlé via le plugin native Gazebo Harmonic `VelocityControl` sur `/crazyflie/cmd_vel`.
-  - Caméra orientée vers le bas (`/drone/camera/image_raw`).
-  - Machine à états (`drone_mapper_node`) avec contrôle Deadband d'altitude.
+```
+Image caméra (top-down)
+        │
+        ▼
+cv2.aruco.ArucoDetector  →  centre marqueur (cx, cy)
+        │
+        ▼
+Erreur normalisée [-1, 1]² :
+  ex = (cx - W/2) / (W/2)   → décalage horizontal
+  ey = (cy - H/2) / (H/2)   → décalage vertical
+        │
+        ▼
+Contrôle proportionnel :
+  vx = clip(kp_xy × ey, ±max_xy)   → avance/recule
+  vy = clip(kp_xy × ex, ±max_xy)   → glisse gauche/droite
+  vz = clip(kp_alt × alt_err, ±max_alt) avec deadband ±0.1m
+```
 
 ---
 
-## 📦 Dépendances (Ubuntu 24.04 + ROS 2 Jazzy + Gazebo Harmonic)
+## 📦 Prérequis
+
+**Système : Ubuntu 24.04 · ROS 2 Jazzy · Gazebo Harmonic**
 
 ```bash
-sudo apt update
-sudo apt install -y \
+sudo apt update && sudo apt install -y \
   ros-jazzy-desktop \
   ros-jazzy-ros-gz \
   ros-jazzy-ros-gz-sim \
@@ -92,15 +155,23 @@ sudo apt install -y \
   python3-transforms3d \
   python3-opencv
 ```
-*(Si le dictionnaire ArUco n'est pas inclus : `pip install opencv-contrib-python`)*
+
+> Si les dictionnaires ArUco ne sont pas inclus dans votre opencv : `pip install opencv-contrib-python`
 
 ---
 
-## 🚀 Lancer la Simulation
+## 🚀 Lancer la simulation
 
-### Via le script d'exécution automatique (Recommandé)
+### 1. Build
 
-Un script `run_sim.sh` est fourni. Il nettoie automatiquement les processus fantômes avant démarrage.
+```bash
+cd maze_robot_sim
+source /opt/ros/jazzy/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+```
+
+### 2. Lancer
 
 **Robot seul :**
 ```bash
@@ -112,25 +183,120 @@ Un script `run_sim.sh` est fourni. Il nettoie automatiquement les processus fant
 ./run_sim.sh spawn_drone:=true
 ```
 
-### Table des Arguments de Launch principaux (`maze_sim.launch.py`)
+**Avec un labyrinthe fixe (seed) :**
+```bash
+./run_sim.sh spawn_drone:=true seed:=42 rows:=5 cols:=5
+```
+
+### Arguments disponibles
 
 | Argument | Défaut | Description |
 |---|---|---|
 | `rows` | `4` | Nombre de lignes du labyrinthe |
 | `cols` | `4` | Nombre de colonnes du labyrinthe |
 | `cell_size` | `0.4` | Taille d'une cellule en mètres |
-| `seed` | aléatoire | Graine pour générer un labyrinthe spécifique |
-| `spawn_drone` | `false` | Activer le spawn du drone Crazyflie avec caméra et suivi ArUco |
+| `seed` | aléatoire | Graine pour reproduire un labyrinthe |
+| `spawn_drone` | `true` | Activer le drone Crazyflie |
+| `invert_angular` | `""` | Forcer l'inversion angulaire (`true`/`false`/auto) |
 
 ---
 
-## 📡 Principaux Topics ROS 2 (Communication)
+## 📡 Topics ROS 2
 
-### Robot Au Sol
-- `/diff_drive_controller/cmd_vel` : Commande de vitesse des roues.
-- `/maze_navigator/status` : Statut public du robot (`CALIBRATING`, `NAVIGATING`, `GOAL_REACHED`). C'est le **canal de communication clé** entre le robot et le drone.
+### Robot au sol (`maze_navigator_node`)
+
+| Topic | Type | Direction | Description |
+|---|---|---|---|
+| `/diff_drive_controller/odom` | `nav_msgs/Odometry` | ← Sub | Odométrie roues |
+| `/diff_drive_controller/cmd_vel` | `geometry_msgs/TwistStamped` | → Pub | Commande vitesse |
+| `/maze_navigator/status` | `std_msgs/String` | → Pub | `CALIBRATING` / `WAYPOINT_i/N` / `GOAL_REACHED` |
+| `/imu` | `sensor_msgs/Imu` | ← Sub | IMU (souscrit, non utilisé activement) |
+
+### Drone Crazyflie (`drone_mapper_node`)
+
+| Topic | Type | Direction | Description |
+|---|---|---|---|
+| `/drone/camera/image_raw` | `sensor_msgs/Image` | ← Sub | Flux caméra top-down |
+| `/model/crazyflie/pose` | `geometry_msgs/Pose` | ← Sub | Altitude réelle Gazebo |
+| `/crazyflie/cmd_vel` | `geometry_msgs/Twist` | → Pub | Commandes vitesse drone |
+| `/crazyflie/enable` | `std_msgs/Bool` | → Pub | Enable moteurs |
+| `/drone/mapper/status` | `std_msgs/String` | → Pub | `TAKEOFF` / `TRACKING` / `LANDING` / `DONE` |
+| `/maze_navigator/status` | `std_msgs/String` | ← Sub | Signal GOAL_REACHED |
+
+---
+
+## 🔧 Paramètres de navigation
+
+### `maze_navigator_node`
+
+| Paramètre | Défaut | Description |
+|---|---|---|
+| `linear_kp` | `0.9` | Gain proportionnel vitesse linéaire |
+| `angular_kp` | `1.8` | Gain proportionnel vitesse angulaire |
+| `max_linear_speed` | `0.3 m/s` | Vitesse max en ligne droite |
+| `max_angular_speed` | `1.6 rad/s` | Vitesse angulaire max |
+| `goal_tolerance` | `0.05 m` | Rayon d'acceptation d'un waypoint |
+| `align_tolerance_rad` | `0.35 rad` | Seuil d'alignement avant avance |
+
+### `drone_mapper_node`
+
+| Paramètre | Défaut | Description |
+|---|---|---|
+| `takeoff_altitude` | `1.0 m` | Altitude de décollage |
+| `tracking_altitude` | `0.8 m` | Altitude de suivi |
+| `landing_altitude` | `0.12 m` | Altitude d'atterrissage |
+| `linear_gain_xy` | `0.5` | Gain P asservissement XY |
+| `max_xy_speed` | `0.2 m/s` | Vitesse max XY du drone |
+| `mapping_hover_sec` | `3.0 s` | Durée du survol initial |
+
+---
+
+## 🤖 Modèles physiques
+
+### Robot différentiel (`maze_robot`)
+- Dimensions : **0.25 m × 0.25 m × 0.08 m**
+- Entraînement : `diff_drive_controller` via `ros2_control`
+- Capteurs : IMU + encodeurs de roues (`/joint_states`)
+- Marqueur : ArUco ID 0 (`DICT_4X4_50`) sur le toit
 
 ### Drone Crazyflie
-- `/drone/camera/image_raw` : L'œil du drone (Flux vidéo top-down).
-- `/crazyflie/cmd_vel` : Les muscles du drone (Commande de vitesse envoyée à Gazebo).
-- `/drone/mapper/status` : L'état du cerveau du drone (`TAKEOFF`, `TRACKING`, `LANDING`).
+- Modèle quadricoptère équivalent Crazyflie 2.x
+- Vol contrôlé via `gz-sim-velocity-control-system`
+- Caméra orientée vers le bas (pitch=90°, yaw=180°)
+- Résolution caméra : 320×240 px @ 30 Hz
+
+---
+
+## 📁 Fichiers générés automatiquement
+
+À chaque lancement, le script de génération produit dans `worlds/` :
+- `generated_maze.sdf` — Monde Gazebo (murs, sol, marqueurs start/goal)
+- `generated_maze.json` — Métadonnées (grille bitmask, chemin A*, dimensions)
+
+---
+
+## 🛠️ Dépannage
+
+**Le robot ne bouge pas :**
+```bash
+ros2 topic info /diff_drive_controller/odom --verbose
+# → Publisher count doit être 1
+```
+
+**Le drone ne décolle pas :**
+```bash
+ros2 topic echo /model/crazyflie/pose
+# → Doit afficher la position z du drone
+```
+
+**ArUco non détecté :**
+```bash
+ros2 topic echo /drone/camera/image_raw --no-arr
+# → Vérifier que le topic publie bien des images
+```
+
+---
+
+## 📄 Licence
+
+MIT © 2026 — yassinechouk
