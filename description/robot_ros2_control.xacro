@@ -1,0 +1,99 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    ros2_control : expose les 2 joints de roue comme interfaces command (velocity)
+    et state (position, velocity) -> ce sont nos "2 encodeurs" côté ROS2.
+    Le plugin gz_ros2_control fait le pont avec Gazebo Harmonic (lit/écrit les
+    joints simulés à chaque pas de simulation).
+  -->
+  <ros2_control name="MazeRobotSystem" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    <joint name="left_wheel_joint">
+      <command_interface name="velocity">
+        <param name="min">-10</param>
+        <param name="max">10</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_wheel_joint">
+      <command_interface name="velocity">
+        <param name="min">-10</param>
+        <param name="max">10</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+  <gazebo>
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(find maze_robot_sim)/config/diff_drive_controller.yaml</parameters>
+      <ros>
+        <namespace>/</namespace>
+      </ros>
+    </plugin>
+  </gazebo>
+
+  <!-- ============================ IMU (Gazebo sensor) ============================ -->
+  <gazebo reference="imu_link">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>true</always_on>
+      <update_rate>100</update_rate>
+      <visualize>false</visualize>
+      <topic>imu</topic>
+      <gz_frame_id>imu_link</gz_frame_id>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.0002</stddev></noise></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.017</stddev></noise></z>
+        </linear_acceleration>
+      </imu>
+    </sensor>
+  </gazebo>
+
+  <!-- Frictions roues (contact pneu/sol) -->
+  <gazebo reference="left_wheel_link">
+    <mu1>1.2</mu1>
+    <mu2>1.2</mu2>
+  </gazebo>
+  <gazebo reference="right_wheel_link">
+    <mu1>1.2</mu1>
+    <mu2>1.2</mu2>
+  </gazebo>
+  <gazebo reference="caster_wheel_link">
+    <mu1>0.001</mu1>
+    <mu2>0.001</mu2>
+  </gazebo>
+
+  <gazebo reference="chassis_link">
+    <material>Gazebo/DarkGrey</material>
+  </gazebo>
+
+  <!-- ArUco marker texture (visible from drone camera or other cameras) -->
+  <gazebo reference="aruco_marker_link">
+    <visual>
+      <material>
+        <ambient>1.0 1.0 1.0 1.0</ambient>
+        <diffuse>1.0 1.0 1.0 1.0</diffuse>
+        <pbr>
+          <metal>
+            <albedo_map>$(find maze_robot_sim)/description/textures/aruco_4x4_id0.png</albedo_map>
+            <metalness>0.0</metalness>
+            <roughness>0.9</roughness>
+          </metal>
+        </pbr>
+      </material>
+    </visual>
+  </gazebo>
+
+</robot>

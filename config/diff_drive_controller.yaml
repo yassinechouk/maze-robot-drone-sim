@@ -1,0 +1,56 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+joint_state_broadcaster:
+  ros__parameters:
+    joints:
+      - left_wheel_joint
+      - right_wheel_joint
+
+diff_drive_controller:
+  ros__parameters:
+    left_wheel_names: ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
+
+    # Doit correspondre exactement à robot_core.xacro
+    wheel_separation: 0.22
+    wheel_radius: 0.045
+
+    wheel_separation_multiplier: 1.0
+    left_wheel_radius_multiplier: 1.0
+    right_wheel_radius_multiplier: 1.0
+
+    publish_rate: 50.0
+    odom_frame_id: odom
+    base_frame_id: base_link
+    pose_covariance_diagonal: [0.001, 0.001, 0.0, 0.0, 0.0, 0.01]
+    twist_covariance_diagonal: [0.001, 0.0, 0.0, 0.0, 0.0, 0.01]
+
+    open_loop: false
+    enable_odom_tf: true
+
+    cmd_vel_timeout: 0.5
+    # Jazzy : diff_drive_controller n'accepte plus que TwistStamped sur
+    # ~/cmd_vel (le paramètre use_stamped_vel et le topic cmd_vel_unstamped
+    # ont été retirés dans cette branche) -- voir maze_navigator_node.py.
+
+    # Limites cinématiques cohérentes avec un petit robot 0.25x0.25 en cellules 0.4m
+    linear:
+      x:
+        has_velocity_limits: true
+        max_velocity: 0.4
+        has_acceleration_limits: true
+        max_acceleration: 0.6
+    angular:
+      z:
+        has_velocity_limits: true
+        max_velocity: 2.0
+        has_acceleration_limits: true
+        max_acceleration: 3.0

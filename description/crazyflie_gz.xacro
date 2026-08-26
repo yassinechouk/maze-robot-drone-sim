@@ -1,0 +1,144 @@
+<?xml version="1.0"?>
+<!--
+  Gazebo-specific extensions pour le drone Crazyflie.
+  Inclus depuis crazyflie.urdf.xacro via le RSP /drone.
+
+  Plugin de vol : MulticopterVelocityControl (gz-sim8 natif).
+  Ce plugin implémente un contrôleur PID multirotor qui lit des commandes
+  de vitesse linéaire (twist.linear) et angulaire (twist.angular.z) via le
+  topic Gazebo /drone/cmd_vel, et génère les forces/couples nécessaires.
+
+  Compromis : pas de modélisation aérodynamique Blade Element Theory complète,
+  mais le comportement de vol est réaliste (stabilisation d'attitude, portance
+  proportionnelle aux commandes, effets gyroscopiques simplifiés).
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ======================== MULTICOPTER FLIGHT PLUGIN ======================== -->
+  <gazebo>
+    <plugin filename="gz-sim-multicopter-control-system"
+            name="gz::sim::systems::MulticopterVelocityControl">
+      <!--
+        BUG FIX #1 : Dans Gazebo Harmonic, MulticopterVelocityControl écoute
+        sur un topic GAZEBO interne scopé au modèle. Le bridge publie sur
+        /drone/cmd_vel côté ROS → Gazebo, ce qui crée le topic Gazebo
+        /drone/cmd_vel. On met commandSubTopic sans le '/' initial pour que
+        le plugin le résolve en /model/crazyflie/cmd_vel (topic Gazebo natif).
+        Côté bridge, on utilise le topic Gazebo exact /model/crazyflie/cmd_vel.
+      -->
+      <commandSubTopic>cmd_vel</commandSubTopic>
+      <enableSubTopic>enable</enableSubTopic>
+      <!-- CRITICAL FIX: In Gazebo, fixed joints merge body_link into root link base_link -->
+      <comLinkName>base_link</comLinkName>
+
+      <!-- Masse + inertie du corps principal (Crazyflie 2.x) -->
+      <mass>0.027</mass>
+      <inertia>
+        <ixx>1.657e-5</ixx>
+        <iyy>1.657e-5</iyy>
+        <izz>2.9e-5</izz>
+        <ixy>0</ixy>
+        <ixz>0</ixz>
+        <iyz>0</iyz>
+      </inertia>
+
+      <gravitationalAcceleration>9.8</gravitationalAcceleration>
+
+      <!-- Gains PID — time constant = 1/bandwidth en secondes -->
+      <linearVelocityTimeConstant>0.15</linearVelocityTimeConstant>
+      <angularVelocityTimeConstant>0.12</angularVelocityTimeConstant>
+
+      <maxLinearVelocity>0.5 0.5 0.5</maxLinearVelocity>
+      <maxAngularVelocity>1.0 1.0 2.0</maxAngularVelocity>
+
+      <!--
+        BUG FIX #4 : Les joints rotor doivent être de type 'continuous' dans
+        le URDF pour que le plugin puisse appliquer des forces physiques.
+        Les noms correspondent aux joints du crazyflie.urdf.xacro.
+      -->
+      <rotor>
+        <jointName>rotor_fl_joint</jointName>
+        <forceConstant>8.54858e-6</forceConstant>
+        <momentConstant>1.6e-2</momentConstant>
+        <direction>1</direction>
+      </rotor>
+      <rotor>
+        <jointName>rotor_fr_joint</jointName>
+        <forceConstant>8.54858e-6</forceConstant>
+        <momentConstant>1.6e-2</momentConstant>
+        <direction>-1</direction>
+      </rotor>
+      <rotor>
+        <jointName>rotor_bl_joint</jointName>
+        <forceConstant>8.54858e-6</forceConstant>
+        <momentConstant>1.6e-2</momentConstant>
+        <direction>-1</direction>
+      </rotor>
+      <rotor>
+        <jointName>rotor_br_joint</jointName>
+        <forceConstant>8.54858e-6</forceConstant>
+        <momentConstant>1.6e-2</momentConstant>
+        <direction>1</direction>
+      </rotor>
+    </plugin>
+  </gazebo>
+
+  <!-- ======================== POSE PUBLISHER PLUGIN ======================== -->
+  <gazebo>
+    <plugin filename="gz-sim-pose-publisher-system"
+            name="gz::sim::systems::PosePublisher">
+      <publish_link_pose>false</publish_link_pose>
+      <publish_sensor_pose>false</publish_sensor_pose>
+      <publish_collision_pose>false</publish_collision_pose>
+      <publish_visual_pose>false</publish_visual_pose>
+      <publish_nested_model_pose>false</publish_nested_model_pose>
+      <use_pose_vector_msg>false</use_pose_vector_msg>
+      <update_frequency>30</update_frequency>
+    </plugin>
+  </gazebo>
+
+  <!-- ======================== DOWNWARD CAMERA (Gazebo sensor) ======================== -->
+  <gazebo reference="camera_link">
+    <sensor name="drone_camera" type="camera">
+      <always_on>true</always_on>
+      <update_rate>30</update_rate>
+      <visualize>true</visualize>
+      <topic>/drone/camera/image_raw</topic>
+      <camera>
+        <horizontal_fov>1.047</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.01</near>
+          <far>20</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0</mean>
+          <stddev>0.005</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <!-- Matériaux visuels du corps -->
+  <gazebo reference="body_link">
+    <material>Gazebo/DarkGrey</material>
+  </gazebo>
+  <gazebo reference="rotor_fl_link">
+    <material>Gazebo/Blue</material>
+  </gazebo>
+  <gazebo reference="rotor_fr_link">
+    <material>Gazebo/Blue</material>
+  </gazebo>
+  <gazebo reference="rotor_bl_link">
+    <material>Gazebo/Blue</material>
+  </gazebo>
+  <gazebo reference="rotor_br_link">
+    <material>Gazebo/Blue</material>
+  </gazebo>
+
+</robot>

@@ -1,0 +1,141 @@
+<?xml version="1.0"?>
+<!--
+  Modèle Crazyflie simplifié pour Gazebo Harmonic (gz-sim 8).
+
+  Compromis choisi : aucun plugin officiel Crazyflie gz-sim8 n'est disponible
+  dans ros_gz. On utilise le plugin natif gz-sim8 MulticopterVelocityControl
+  (gz::sim::systems::MulticopterVelocityControl) pour le vol — il implémente
+  un contrôleur de vitesse linéaire + angulaire réaliste pour un multirotor, sans
+  modélisation aérodynamique complète. Le drone reçoit des commandes via le topic
+  Gazebo /drone/cmd_vel (gz.msgs.Twist) ponté en ROS 2 par ros_gz_bridge.
+
+  La caméra orientée vers le bas est simulée par le plugin CameraPlugin standard
+  de gz-sim8, pontée via ros_gz_bridge en sensor_msgs/Image sur /drone/camera/image_raw.
+-->
+<robot name="crazyflie" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Dimensions physiques approximatives d'un Crazyflie 2.x -->
+  <xacro:property name="body_size"   value="0.06"/>  <!-- 6 cm de diamètre effectif -->
+  <xacro:property name="body_height" value="0.03"/>
+  <xacro:property name="body_mass"   value="0.027"/>  <!-- 27 g -->
+
+  <xacro:property name="rotor_radius"  value="0.023"/>
+  <xacro:property name="rotor_height"  value="0.003"/>
+  <xacro:property name="rotor_mass"    value="0.001"/>
+
+  <!-- Bras reliant le corps aux rotors : 4 bras à 45° -->
+  <xacro:property name="arm_length" value="0.033"/>
+
+  <!-- Camera looking downward -->
+  <xacro:property name="cam_width"  value="640"/>
+  <xacro:property name="cam_height" value="480"/>
+  <xacro:property name="cam_fov"    value="1.047"/>  <!-- ~60 degrees -->
+  <xacro:property name="cam_fps"    value="30"/>
+
+  <!-- ======================== BASE LINK ======================== -->
+  <link name="base_link"/>
+
+  <joint name="base_to_body" type="fixed">
+    <parent link="base_link"/>
+    <child link="body_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Corps principal (boîte plate hexagonale approchée par une boîte) -->
+  <link name="body_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${body_size} ${body_size} ${body_height}"/>
+      </geometry>
+      <material name="drone_black">
+        <color rgba="0.08 0.08 0.10 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${body_size} ${body_size} ${body_height}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="${body_mass}"/>
+      <inertia
+        ixx="${body_mass/12.0*(body_size*body_size + body_height*body_height)}"
+        ixy="0" ixz="0"
+        iyy="${body_mass/12.0*(body_size*body_size + body_height*body_height)}"
+        iyz="0"
+        izz="${body_mass/6.0*(body_size*body_size)}"/>
+    </inertial>
+  </link>
+
+  <!-- ======================== 4 ROTORS ======================== -->
+  <xacro:macro name="rotor" params="name angle_deg">
+    <xacro:property name="angle_rad" value="${angle_deg * 3.14159265358979 / 180.0}"/>
+
+    <link name="${name}_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${rotor_radius}" length="${rotor_height}"/>
+        </geometry>
+        <material name="rotor_mat">
+          <color rgba="0.3 0.3 0.8 0.7"/>
+        </material>
+      </visual>
+      <inertial>
+        <mass value="${rotor_mass}"/>
+        <inertia
+          ixx="${rotor_mass/12.0*(3*rotor_radius*rotor_radius + rotor_height*rotor_height)}"
+          ixy="0" ixz="0"
+          iyy="${rotor_mass/12.0*(3*rotor_radius*rotor_radius + rotor_height*rotor_height)}"
+          iyz="0"
+          izz="${rotor_mass/2.0*rotor_radius*rotor_radius}"/>
+      </inertial>
+    </link>
+
+    <joint name="${name}_joint" type="continuous">
+      <parent link="body_link"/>
+      <child link="${name}_link"/>
+      <origin xyz="${arm_length * cos(angle_rad)} ${arm_length * sin(angle_rad)} ${body_height/2.0}"
+              rpy="0 0 0"/>
+      <!-- Rotation autour de Z (axe vertical) pour MulticopterVelocityControl -->
+      <axis xyz="0 0 1"/>
+      <limit effort="100" velocity="1000"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:rotor name="rotor_fl" angle_deg="45"/>
+  <xacro:rotor name="rotor_fr" angle_deg="-45"/>
+  <xacro:rotor name="rotor_bl" angle_deg="135"/>
+  <xacro:rotor name="rotor_br" angle_deg="-135"/>
+
+  <!-- ======================== DOWNWARD CAMERA ======================== -->
+  <link name="camera_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.012 0.012 0.005"/>
+      </geometry>
+      <material name="cam_mat">
+        <color rgba="0.2 0.2 0.2 1.0"/>
+      </material>
+    </visual>
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="1e-8" ixy="0" ixz="0" iyy="1e-8" iyz="0" izz="1e-8"/>
+    </inertial>
+  </link>
+
+  <!-- Caméra orientée vers le bas : rpy pi/2 0 0 pointe -z en avant de la caméra -->
+  <joint name="camera_joint" type="fixed">
+    <parent link="body_link"/>
+    <child link="camera_link"/>
+    <!-- Sous le corps, regardant vers le bas -->
+    <origin xyz="0 0 ${-body_height/2.0 - 0.005}" rpy="${3.14159265358979/2.0} 0 ${-3.14159265358979/2.0}"/>
+  </joint>
+
+  <!-- Gazebo-specific plugins (camera, flight controller) -->
+  <xacro:include filename="$(find maze_robot_sim)/description/crazyflie_gz.xacro"/>
+
+</robot>

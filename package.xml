@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>maze_robot_sim</name>
+  <version>0.1.0</version>
+  <description>
+    Simulation Gazebo Harmonic + ROS2 Jazzy d'un robot différentiel (0.25x0.25m)
+    naviguant dans un labyrinthe (cellules 0.4x0.4m), avec IMU et 2 encodeurs
+    (via ros2_control diff_drive_controller), du start au goal via A*.
+    Drone Crazyflie optionnel (spawn_drone:=true) pour cartographie top-down
+    et suivi ArUco temps-réel du robot.
+  </description>
+  <maintainer email="you@example.com">Yassine</maintainer>
+  <license>MIT</license>
+
+  <!-- Simulation Gazebo -->
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>ros_gz_interfaces</exec_depend>
+  <exec_depend>gz_ros2_control</exec_depend>
+
+  <!-- Robot description + contrôleurs -->
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>diff_drive_controller</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+
+  <!-- ROS 2 Python -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf_transformations</exec_depend>
+
+  <!-- Vision (ArUco + cv_bridge) -->
+  <exec_depend>cv_bridge</exec_depend>
+  <!-- python3-opencv-contrib (cv2.aruco) doit être installé via pip :
+       pip install opencv-contrib-python>=4.5
+       ou via apt : python3-opencv (selon la version disponible) -->
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

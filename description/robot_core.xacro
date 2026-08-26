@@ -1,0 +1,183 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    Dimensions du robot alignées sur config.py (RobotParams) :
+      L = 0.25 m (longueur), W = 0.25 m (largeur), cell_size labyrinthe = 0.40 m
+    Le chassis est modélisé comme une boîte carrée 0.25 x 0.25, hauteur 0.08 m,
+    posée sur 2 roues motrices différentielles + 1 roulette folle (caster) à l'arrière.
+  -->
+  <xacro:property name="chassis_length" value="0.25"/>
+  <xacro:property name="chassis_width"  value="0.25"/>
+  <xacro:property name="chassis_height" value="0.08"/>
+  <xacro:property name="chassis_mass"   value="1.2"/>
+
+  <xacro:property name="wheel_radius"   value="0.045"/>
+  <xacro:property name="wheel_width"    value="0.03"/>
+  <xacro:property name="wheel_mass"     value="0.10"/>
+  <!-- Empattement (distance entre les 2 roues motrices) -->
+  <xacro:property name="wheel_separation" value="0.22"/>
+  <xacro:property name="wheel_x_offset" value="0.0"/>
+  <xacro:property name="wheel_z_offset" value="0.0"/>
+
+  <xacro:property name="caster_radius" value="0.02"/>
+  <xacro:property name="caster_mass"   value="0.05"/>
+
+  <material name="chassis_grey">
+    <color rgba="0.25 0.27 0.32 1.0"/>
+  </material>
+  <material name="wheel_black">
+    <color rgba="0.05 0.05 0.05 1.0"/>
+  </material>
+  <material name="caster_grey">
+    <color rgba="0.5 0.5 0.5 1.0"/>
+  </material>
+  <material name="imu_red">
+    <color rgba="0.8 0.1 0.1 1.0"/>
+  </material>
+
+  <xacro:macro name="box_inertia" params="mass x y z">
+    <inertia
+      ixx="${mass/12.0*(y*y+z*z)}" ixy="0.0" ixz="0.0"
+      iyy="${mass/12.0*(x*x+z*z)}" iyz="0.0"
+      izz="${mass/12.0*(x*x+y*y)}"/>
+  </xacro:macro>
+
+  <xacro:macro name="cylinder_inertia" params="mass r h">
+    <inertia
+      ixx="${mass/12.0*(3*r*r+h*h)}" ixy="0.0" ixz="0.0"
+      iyy="${mass/12.0*(3*r*r+h*h)}" iyz="0.0"
+      izz="${mass/2.0*r*r}"/>
+  </xacro:macro>
+
+  <xacro:macro name="sphere_inertia" params="mass r">
+    <inertia
+      ixx="${2.0/5.0*mass*r*r}" ixy="0.0" ixz="0.0"
+      iyy="${2.0/5.0*mass*r*r}" iyz="0.0"
+      izz="${2.0/5.0*mass*r*r}"/>
+  </xacro:macro>
+
+  <!-- ============================ BASE LINK ============================ -->
+  <link name="base_link"/>
+
+  <joint name="base_to_chassis" type="fixed">
+    <parent link="base_link"/>
+    <child link="chassis_link"/>
+    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="chassis_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+      <material name="chassis_grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${chassis_length} ${chassis_width} ${chassis_height}"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="${chassis_mass}"/>
+      <xacro:box_inertia mass="${chassis_mass}" x="${chassis_length}" y="${chassis_width}" z="${chassis_height}"/>
+    </inertial>
+  </link>
+
+  <!-- ============================ WHEELS ============================ -->
+  <xacro:macro name="wheel_link" params="prefix reflect">
+    <link name="${prefix}_wheel_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="1.5707963267948966 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="wheel_black"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="1.5707963267948966 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${wheel_mass}"/>
+        <xacro:cylinder_inertia mass="${wheel_mass}" r="${wheel_radius}" h="${wheel_width}"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="chassis_link"/>
+      <child link="${prefix}_wheel_link"/>
+      <origin xyz="${wheel_x_offset} ${reflect*wheel_separation/2.0} ${wheel_z_offset - wheel_radius}" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <dynamics damping="0.05" friction="0.02"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel_link prefix="left"  reflect="1.0"/>
+  <xacro:wheel_link prefix="right" reflect="-1.0"/>
+
+  <!-- ============================ CASTER (roulette folle) ============================ -->
+  <link name="caster_wheel_link">
+    <visual>
+      <geometry><sphere radius="${caster_radius}"/></geometry>
+      <material name="caster_grey"/>
+    </visual>
+    <collision>
+      <geometry><sphere radius="${caster_radius}"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="${caster_mass}"/>
+      <xacro:sphere_inertia mass="${caster_mass}" r="${caster_radius}"/>
+    </inertial>
+  </link>
+
+  <joint name="caster_joint" type="fixed">
+    <parent link="chassis_link"/>
+    <child link="caster_wheel_link"/>
+    <origin xyz="-0.09 0 ${-(wheel_radius - caster_radius)}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============================ IMU ============================ -->
+  <link name="imu_link">
+    <visual>
+      <geometry><box size="0.02 0.02 0.01"/></geometry>
+      <material name="imu_red"/>
+    </visual>
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <joint name="imu_joint" type="fixed">
+    <parent link="chassis_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 ${chassis_height/2.0}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============================ ARUCO MARKER (top) ============================ -->
+  <link name="aruco_marker_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.12 0.12 0.001"/></geometry>
+    </visual>
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="1e-7" ixy="0" ixz="0" iyy="1e-7" iyz="0" izz="1e-7"/>
+    </inertial>
+  </link>
+
+  <joint name="aruco_marker_joint" type="fixed">
+    <parent link="chassis_link"/>
+    <child link="aruco_marker_link"/>
+    <!-- Elevate it cleanly to be precisely on top of chassis -->
+    <origin xyz="0 0 ${chassis_height/2.0 + 0.001}" rpy="0 0 0"/>
+  </joint>
+
+</robot>

@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<robot name="maze_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find maze_robot_sim)/description/robot_core.xacro"/>
+  <xacro:include filename="$(find maze_robot_sim)/description/robot_ros2_control.xacro"/>
+
+</robot>
