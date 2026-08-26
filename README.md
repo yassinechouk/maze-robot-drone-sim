@@ -275,7 +275,7 @@ source install/setup.bash
 
 ---
 
-## 🛠️ Dépannage
+##  Dépannage
 
 **Le robot ne bouge pas :**
 ```bash
