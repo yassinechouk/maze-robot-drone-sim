@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🤖 maze-robot-drone-sim
+# maze-robot-drone-sim
 
 ### Gazebo Harmonic + ROS 2 Jazzy — Autonomous Maze Navigation with ArUco Drone Tracking
 
@@ -14,7 +14,7 @@
 
 ---
 
-## 🎬 Simulation en action
+## Simulation en action
 
 | Phase 1 — Démarrage & Décollage | Phase 2 — Navigation du Robot |
 |:---:|:---:|
@@ -30,7 +30,7 @@
 
 ---
 
-## 📋 Vue d'ensemble
+## Vue d'ensemble
 
 Ce projet simule un **robot mobile différentiel** naviguant de manière autonome dans un labyrinthe généré procéduralement, suivi en temps réel par un **drone Crazyflie** équipé d'une caméra orientée vers le bas.
 
@@ -38,15 +38,15 @@ Ce projet simule un **robot mobile différentiel** naviguant de manière autonom
 
 | Feature | Description |
 |---|---|
-| 🗺️ **Génération de labyrinthe** | DFS randomisé → monde SDF + chemin A* en JSON |
-| 🤖 **Navigation autonome** | Contrôleur go-to-goal avec auto-calibration odométrique |
-| 🚁 **Drone de suivi** | Machine à états TAKEOFF → HOVER → TRACKING → LANDING |
-| 👁️ **Vision par ordinateur** | Asservissement visuel ArUco ID 0 (DICT_4X4_50) temps réel |
-| 📡 **Communication ROS 2** | Topics inter-noeuds via `/maze_navigator/status` |
+|  **Génération de labyrinthe** | DFS randomisé → monde SDF + chemin A* en JSON |
+|  **Navigation autonome** | Contrôleur go-to-goal avec auto-calibration odométrique |
+|  **Drone de suivi** | Machine à états TAKEOFF → HOVER → TRACKING → LANDING |
+|  **Vision par ordinateur** | Asservissement visuel ArUco ID 0 (DICT_4X4_50) temps réel |
+|  **Communication ROS 2** | Topics inter-noeuds via `/maze_navigator/status` |
 
 ---
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 maze_robot_sim/
@@ -132,7 +132,7 @@ Contrôle proportionnel :
 
 ---
 
-## 📦 Prérequis
+##  Prérequis
 
 **Système : Ubuntu 24.04 · ROS 2 Jazzy · Gazebo Harmonic**
 
@@ -160,7 +160,7 @@ sudo apt update && sudo apt install -y \
 
 ---
 
-## 🚀 Lancer la simulation
+## Lancer la simulation
 
 ### 1. Build
 
@@ -267,7 +267,7 @@ source install/setup.bash
 
 ---
 
-## 📁 Fichiers générés automatiquement
+## Fichiers générés automatiquement
 
 À chaque lancement, le script de génération produit dans `worlds/` :
 - `generated_maze.sdf` — Monde Gazebo (murs, sol, marqueurs start/goal)
