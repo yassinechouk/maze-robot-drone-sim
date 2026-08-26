@@ -4,82 +4,185 @@
   Inclus depuis crazyflie.urdf.xacro via le RSP /drone.
 
   Plugin de vol : MulticopterVelocityControl (gz-sim8 natif).
-  Ce plugin implémente un contrôleur PID multirotor qui lit des commandes
-  de vitesse linéaire (twist.linear) et angulaire (twist.angular.z) via le
-  topic Gazebo /drone/cmd_vel, et génère les forces/couples nécessaires.
+  Ce plugin est le CONTRÔLEUR HAUT NIVEAU qui reçoit des commandes Twist
+  et calcule les vitesses de rotation cibles de chaque hélice.
 
-  Compromis : pas de modélisation aérodynamique Blade Element Theory complète,
-  mais le comportement de vol est réaliste (stabilisation d'attitude, portance
-  proportionnelle aux commandes, effets gyroscopiques simplifiés).
+  Il doit être couplé obligatoirement avec 4 plugins MulticopterMotorModel
+  (un par rotor), qui traduisent ces vitesses cibles en forces physiques
+  réelles (poussée + couple) appliquées dans le moteur physique Gazebo.
+
+  Sans les MulticopterMotorModel, le drone reste au sol même si le contrôleur
+  haut niveau reçoit les commandes correctement.
+
+  Référence officielle : /usr/share/gz/gz-sim8/worlds/multicopter_velocity_control.sdf
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <!-- ======================== MULTICOPTER FLIGHT PLUGIN ======================== -->
+  <!-- ======================== MULTICOPTER MOTOR MODEL PLUGINS ======================== -->
+  <!--
+    Ces 4 plugins traduisent les vitesses de rotation commandées par
+    MulticopterVelocityControl en forces physiques (poussée, couple) sur
+    chaque hélice. OBLIGATOIRES pour que le drone décolle.
+    commandSubTopic doit correspondre au motorControlPubTopic de VelocityControl.
+  -->
+
+  <!-- Rotor Front-Left (CCW) -->
+  <gazebo>
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_fl_joint</jointName>
+      <linkName>rotor_fl_link</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>800.0</maxRotVelocity>
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <actuator_number>0</actuator_number>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <motorSpeedPubTopic>motor_speed/0</motorSpeedPubTopic>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+  </gazebo>
+
+  <!-- Rotor Front-Right (CW) -->
+  <gazebo>
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_fr_joint</jointName>
+      <linkName>rotor_fr_link</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>800.0</maxRotVelocity>
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <actuator_number>1</actuator_number>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <motorSpeedPubTopic>motor_speed/1</motorSpeedPubTopic>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+  </gazebo>
+
+  <!-- Rotor Back-Left (CW) -->
+  <gazebo>
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_bl_joint</jointName>
+      <linkName>rotor_bl_link</linkName>
+      <turningDirection>cw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>800.0</maxRotVelocity>
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <actuator_number>2</actuator_number>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <motorSpeedPubTopic>motor_speed/2</motorSpeedPubTopic>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+  </gazebo>
+
+  <!-- Rotor Back-Right (CCW) -->
+  <gazebo>
+    <plugin filename="gz-sim-multicopter-motor-model-system"
+            name="gz::sim::systems::MulticopterMotorModel">
+      <jointName>rotor_br_joint</jointName>
+      <linkName>rotor_br_link</linkName>
+      <turningDirection>ccw</turningDirection>
+      <timeConstantUp>0.0125</timeConstantUp>
+      <timeConstantDown>0.025</timeConstantDown>
+      <maxRotVelocity>800.0</maxRotVelocity>
+      <motorConstant>8.54858e-06</motorConstant>
+      <momentConstant>0.016</momentConstant>
+      <commandSubTopic>command/motor_speed</commandSubTopic>
+      <actuator_number>3</actuator_number>
+      <rotorDragCoefficient>8.06428e-05</rotorDragCoefficient>
+      <rollingMomentCoefficient>1e-06</rollingMomentCoefficient>
+      <motorSpeedPubTopic>motor_speed/3</motorSpeedPubTopic>
+      <rotorVelocitySlowdownSim>10</rotorVelocitySlowdownSim>
+      <motorType>velocity</motorType>
+    </plugin>
+  </gazebo>
+
+  <!-- ======================== MULTICOPTER FLIGHT VELOCITY CONTROL PLUGIN ======================== -->
+  <!--
+    Contrôleur haut niveau : reçoit les commandes Twist (vx, vy, vz, wz) et
+    calcule les vitesses de rotation cibles des hélices.
+    Il publie ces vitesses vers les MulticopterMotorModel via le composant
+    Actuators (motorControlPubTopic → commandSubTopic des moteurs).
+
+    rotorConfiguration : OBLIGATOIRE, doit encapsuler la liste des rotors.
+    Les gains sont conformes à Gazebo Sim 8 (format officiel X3/X4 UAV).
+  -->
   <gazebo>
     <plugin filename="gz-sim-multicopter-control-system"
             name="gz::sim::systems::MulticopterVelocityControl">
-      <!--
-        BUG FIX #1 : Dans Gazebo Harmonic, MulticopterVelocityControl écoute
-        sur un topic GAZEBO interne scopé au modèle. Le bridge publie sur
-        /drone/cmd_vel côté ROS → Gazebo, ce qui crée le topic Gazebo
-        /drone/cmd_vel. On met commandSubTopic sans le '/' initial pour que
-        le plugin le résolve en /model/crazyflie/cmd_vel (topic Gazebo natif).
-        Côté bridge, on utilise le topic Gazebo exact /model/crazyflie/cmd_vel.
-      -->
       <commandSubTopic>cmd_vel</commandSubTopic>
       <enableSubTopic>enable</enableSubTopic>
-      <!-- CRITICAL FIX: In Gazebo, fixed joints merge body_link into root link base_link -->
+      <!-- motorControlPubTopic DOIT correspondre aux commandSubTopic des MulticopterMotorModel -->
+      <motorControlPubTopic>command/motor_speed</motorControlPubTopic>
+      <!-- comLinkName : le lien principal du corps du drone -->
       <comLinkName>base_link</comLinkName>
 
-      <!-- Masse + inertie du corps principal (Crazyflie 2.x) -->
-      <mass>0.027</mass>
-      <inertia>
-        <ixx>1.657e-5</ixx>
-        <iyy>1.657e-5</iyy>
-        <izz>2.9e-5</izz>
-        <ixy>0</ixy>
-        <ixz>0</ixz>
-        <iyz>0</iyz>
-      </inertia>
+      <!-- Gains PID conformes au format Gazebo Sim 8 -->
+      <velocityGain>2.7 2.7 2.7</velocityGain>
+      <attitudeGain>2 3 0.15</attitudeGain>
+      <angularRateGain>0.4 0.52 0.18</angularRateGain>
+      <maximumLinearAcceleration>2 2 2</maximumLinearAcceleration>
+      <maximumLinearVelocity>0.5 0.5 0.5</maximumLinearVelocity>
+      <maximumAngularVelocity>1.0 1.0 2.0</maximumAngularVelocity>
 
-      <gravitationalAcceleration>9.8</gravitationalAcceleration>
-
-      <!-- Gains PID — time constant = 1/bandwidth en secondes -->
-      <linearVelocityTimeConstant>0.15</linearVelocityTimeConstant>
-      <angularVelocityTimeConstant>0.12</angularVelocityTimeConstant>
-
-      <maxLinearVelocity>0.5 0.5 0.5</maxLinearVelocity>
-      <maxAngularVelocity>1.0 1.0 2.0</maxAngularVelocity>
+      <!-- Bruit de mesure (valeurs issues de la doc officielle Gazebo) -->
+      <linearVelocityNoiseMean>0 0 0</linearVelocityNoiseMean>
+      <linearVelocityNoiseStdDev>0.1105 0.1261 0.0947</linearVelocityNoiseStdDev>
+      <angularVelocityNoiseMean>0 0 0</angularVelocityNoiseMean>
+      <angularVelocityNoiseStdDev>0.004 0.004 0.004</angularVelocityNoiseStdDev>
 
       <!--
-        BUG FIX #4 : Les joints rotor doivent être de type 'continuous' dans
-        le URDF pour que le plugin puisse appliquer des forces physiques.
-        Les noms correspondent aux joints du crazyflie.urdf.xacro.
+        rotorConfiguration OBLIGATOIRE : l'absence de cette balise ou des
+        joints manquants rend le plugin inactif (aucune force générée).
+        Les positions (armLength, angle) définissent le signe du moment de lacet.
       -->
-      <rotor>
-        <jointName>rotor_fl_joint</jointName>
-        <forceConstant>8.54858e-6</forceConstant>
-        <momentConstant>1.6e-2</momentConstant>
-        <direction>1</direction>
-      </rotor>
-      <rotor>
-        <jointName>rotor_fr_joint</jointName>
-        <forceConstant>8.54858e-6</forceConstant>
-        <momentConstant>1.6e-2</momentConstant>
-        <direction>-1</direction>
-      </rotor>
-      <rotor>
-        <jointName>rotor_bl_joint</jointName>
-        <forceConstant>8.54858e-6</forceConstant>
-        <momentConstant>1.6e-2</momentConstant>
-        <direction>-1</direction>
-      </rotor>
-      <rotor>
-        <jointName>rotor_br_joint</jointName>
-        <forceConstant>8.54858e-6</forceConstant>
-        <momentConstant>1.6e-2</momentConstant>
-        <direction>1</direction>
-      </rotor>
+      <rotorConfiguration>
+        <!-- FL : CCW → direction +1 -->
+        <rotor>
+          <jointName>rotor_fl_joint</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>1</direction>
+        </rotor>
+        <!-- FR : CW → direction -1 -->
+        <rotor>
+          <jointName>rotor_fr_joint</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>-1</direction>
+        </rotor>
+        <!-- BL : CW → direction -1 -->
+        <rotor>
+          <jointName>rotor_bl_joint</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>-1</direction>
+        </rotor>
+        <!-- BR : CCW → direction +1 -->
+        <rotor>
+          <jointName>rotor_br_joint</jointName>
+          <forceConstant>8.54858e-06</forceConstant>
+          <momentConstant>0.016</momentConstant>
+          <direction>1</direction>
+        </rotor>
+      </rotorConfiguration>
     </plugin>
   </gazebo>
 

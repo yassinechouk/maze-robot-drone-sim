@@ -41,7 +41,7 @@ from rclpy.qos import (
     QoSReliabilityPolicy,
 )
 from sensor_msgs.msg import Image
-from std_msgs.msg import String
+from std_msgs.msg import Bool, String
 
 
 # ── ArUco (DICT_4X4_50, ID 0 — correspond au robot_core.xacro) ──
@@ -75,10 +75,9 @@ class DroneMapperNode(Node):
         self.declare_parameter("alt_gain",          1.2)
         self.declare_parameter("max_alt_speed",     0.4)
         self.declare_parameter("image_topic",       "/drone/camera/image_raw")
-        # BUG FIX #1 : topic Gazebo scopé au modèle
-        self.declare_parameter("cmd_vel_topic",     "/model/crazyflie/cmd_vel")
-        # BUG FIX #2 : pose Gazebo pour feedback altitude réel
+        self.declare_parameter("cmd_vel_topic",     "/crazyflie/cmd_vel")
         self.declare_parameter("pose_topic",        "/model/crazyflie/pose")
+        self.declare_parameter("enable_topic",      "/crazyflie/enable")
         self.declare_parameter("status_topic",      "/drone/mapper/status")
 
         p = self.get_parameter
@@ -101,6 +100,10 @@ class DroneMapperNode(Node):
         self._real_alt     = 0.0    # m, mis à jour par _pose_cb
         self._pose_received = False
 
+        # Altitude estimée par intégration open-loop (fallback si pas de pose)
+        self._estimated_alt  = 0.0
+        self._last_cmd_time  = None
+
         # Image courante OpenCV
         self._last_frame   = None
 
@@ -112,7 +115,9 @@ class DroneMapperNode(Node):
 
         # ── Publishers ──
         cmd_topic = p("cmd_vel_topic").value
+        enable_topic = p("enable_topic").value
         self.cmd_pub    = self.create_publisher(Twist, cmd_topic, 10)
+        self.enable_pub = self.create_publisher(Bool, enable_topic, 10)
         self.status_pub = self.create_publisher(String, p("status_topic").value, 10)
 
         # ── Subscribers ──
@@ -151,6 +156,7 @@ class DroneMapperNode(Node):
         self.get_logger().info(
             f"[Drone] DroneMapperNode démarré.\n"
             f"  cmd_vel → {cmd_topic}\n"
+            f"  enable  → {enable_topic}\n"
             f"  pose    → {p('pose_topic').value}\n"
             f"  image   → {p('image_topic').value}\n"
             f"  Décollage cible : {self.takeoff_alt:.2f} m | "
@@ -158,9 +164,20 @@ class DroneMapperNode(Node):
             f"Atterrissage : {self.landing_alt:.2f} m"
         )
 
+        # Activer le contrôleur MulticopterVelocityControl périodiquement
+        # (temps que Gazebo spawne le modèle et initialise le bridge).
+        self.create_timer(1.0, self._send_enable_periodic)
+
     # ──────────────────────────────────────────────────────────
     #  Callbacks
     # ──────────────────────────────────────────────────────────
+
+    def _send_enable_periodic(self):
+        """Envoie enable=True au MulticopterVelocityControl."""
+        if self.state != STATE_DONE:
+            msg = Bool()
+            msg.data = True
+            self.enable_pub.publish(msg)
 
     def _image_cb(self, msg: Image):
         try:
@@ -263,7 +280,7 @@ class DroneMapperNode(Node):
                     throttle_duration_sec=3.0)
             return
 
-        # ── TAKEOFF : monter jusqu'à takeoff_altitude ──
+        # ── TAKEOFF : monter jusqu’à takeoff_altitude ──
         if self.state == STATE_TAKEOFF:
             alt_err = self.takeoff_alt - curr_alt
             self.get_logger().info(
@@ -271,30 +288,33 @@ class DroneMapperNode(Node):
                 f"/ err={alt_err:.3f} m",
                 throttle_duration_sec=1.0)
 
-            if alt_err > 0.05:
-                vz = min(self.max_alt, self.kp_alt * alt_err)
-                vz = max(vz, self.takeoff_spd * 0.3)
-                self._pub_cmd(0.0, 0.0, vz)
-                self._pub_status("TAKEOFF")
-            else:
+            if abs(alt_err) < 0.08:
                 self._pub_cmd(0.0, 0.0, 0.0)
                 self.get_logger().info(
                     f"[Drone] Altitude cible atteinte ({curr_alt:.3f} m). "
                     f"Passage en HOVER_MAP pour {self.hover_sec:.1f}s.")
                 self._enter_state(STATE_HOVER_MAP)
+            else:
+                vz = float(np.clip(0.4 * alt_err, -0.2, 0.3))
+                self._pub_cmd(0.0, 0.0, vz)
+                self._pub_status("TAKEOFF")
             return
 
         # ── HOVER_MAP : vol stationnaire + observation ──
         if self.state == STATE_HOVER_MAP:
             alt_err = self.takeoff_alt - self._real_alt
-            vz = max(-self.max_alt, min(self.max_alt, self.kp_alt * alt_err))
+            # Deadband large : si err < 0.15m on coupe les moteurs (vitesse nulle)
+            if abs(alt_err) < 0.15:
+                vz = 0.0
+            else:
+                vz = float(np.clip(0.2 * alt_err, -0.15, 0.15))
             self._pub_cmd(0.0, 0.0, vz)
             self._pub_status("MAPPING")
 
             t = self._time_in_state()
             self.get_logger().info(
                 f"[Drone] MAPPING ({t:.1f}/{self.hover_sec:.1f}s) "
-                f"alt={self._real_alt:.3f} m",
+                f"alt={self._real_alt:.3f} m vz={vz:.3f}",
                 throttle_duration_sec=1.0)
 
             if t >= self.hover_sec:
@@ -364,9 +384,12 @@ class DroneMapperNode(Node):
                 f"— position XY maintenue.",
                 throttle_duration_sec=2.0)
 
-        # Contrôle altitude (feedback réel)
+        # Contrôle altitude (feedback réel) avec deadband
         alt_err = target_alt - self._real_alt
-        vz = float(np.clip(self.kp_alt * alt_err, -self.max_alt, self.max_alt))
+        if abs(alt_err) < 0.1:
+            vz = 0.0  # Dans la zone cible → arrêt vertical
+        else:
+            vz = float(np.clip(0.3 * alt_err, -0.15, 0.15))
         self.get_logger().info(
             f"[Drone] Alt réelle={self._real_alt:.3f} m / cible={target_alt:.3f} m → vz={vz:.3f}",
             throttle_duration_sec=1.0)

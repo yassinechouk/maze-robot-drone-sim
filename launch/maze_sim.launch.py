@@ -17,6 +17,7 @@ Topics ajoutés avec spawn_drone:=true :
   /drone/mapper/status     (std_msgs/String)       — état du drone_mapper_node
 """
 import os
+import random
 import sys
 
 from ament_index_python.packages import get_package_share_directory
@@ -60,7 +61,8 @@ def generate_launch_description():
     declare_rows = DeclareLaunchArgument("rows", default_value="4")
     declare_cols = DeclareLaunchArgument("cols", default_value="4")
     declare_cell_size = DeclareLaunchArgument("cell_size", default_value="0.4")
-    declare_seed = DeclareLaunchArgument("seed", default_value="1")
+    # Seed aléatoire à chaque lancement (peut être fixé via seed:=<N>)
+    declare_seed = DeclareLaunchArgument("seed", default_value=str(random.randint(1, 100000)))
     declare_generate_world = DeclareLaunchArgument("generate_world", default_value="true")
     declare_world_file = DeclareLaunchArgument(
         "world_file",
@@ -75,7 +77,7 @@ def generate_launch_description():
 
     # Arguments drone
     declare_spawn_drone = DeclareLaunchArgument(
-        "spawn_drone", default_value="false",
+        "spawn_drone", default_value="true",
         description="Spawn the Crazyflie drone above the start (true/false)"
     )
     declare_drone_x = DeclareLaunchArgument("drone_x", default_value="0.0")
@@ -121,6 +123,7 @@ def generate_launch_description():
 
     # Robot state publisher du drone (séparé, namespace /drone)
     drone_xacro_file = os.path.join(pkg_share, "description", "crazyflie.urdf.xacro")
+    drone_sdf_file = os.path.join(pkg_share, "description", "crazyflie_model.sdf")
     drone_description_content = ParameterValue(
         Command(["xacro ", drone_xacro_file]), value_type=str
     )
@@ -189,7 +192,7 @@ def generate_launch_description():
         executable="create",
         arguments=[
             "-name", "crazyflie",
-            "-topic", "/drone/robot_description",
+            "-file", drone_sdf_file,
             "-x", drone_x,
             "-y", drone_y,
             "-z", drone_z,
@@ -230,10 +233,11 @@ def generate_launch_description():
             # Caméra top-down drone : Gazebo → ROS 2
             "/drone/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image",
             # Commandes vitesse drone : ROS 2 → Gazebo
-            # On utilise le topic Gazebo scopé au modèle : /model/crazyflie/cmd_vel
-            "/model/crazyflie/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist",
+            "/crazyflie/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist",
             # Pose du drone depuis Gazebo → ROS 2 (pour feedback altitude réel)
             "/model/crazyflie/pose@geometry_msgs/msg/Pose[gz.msgs.Pose",
+            # Enable/Disable du plugin MulticopterVelocityControl : ROS 2 → Gazebo
+            "/crazyflie/enable@std_msgs/msg/Bool]gz.msgs.Boolean",
         ],
         output="screen",
         parameters=[{"use_sim_time": True}],
@@ -280,9 +284,8 @@ def generate_launch_description():
         parameters=[{
             "use_sim_time":       True,
             "image_topic":        "/drone/camera/image_raw",
-            # BUG FIX #1 : topic scopé au modèle Gazebo pour atteindre MulticopterVelocityControl
-            "cmd_vel_topic":      "/model/crazyflie/cmd_vel",
-            # BUG FIX #2 : topic pose Gazebo pour feedback altitude réel (pas d'intégration open-loop)
+            "cmd_vel_topic":      "/crazyflie/cmd_vel",
+            "enable_topic":       "/crazyflie/enable",
             "pose_topic":         "/model/crazyflie/pose",
             "takeoff_altitude":   1.0,
             "tracking_altitude":  0.8,

@@ -1,0 +1,222 @@
+<?xml version="1.0"?>
+<!--
+  Modèle Crazyflie en format SDF natif pour Gazebo Harmonic (gz-sim 8).
+
+  RAISON : Lorsque le drone était spawné depuis un topic URDF (robot_description),
+  la conversion URDF→SDF de Gazebo perdait silencieusement les plugins
+  MulticopterMotorModel et MulticopterVelocityControl. Le drone apparaissait
+  dans la scène mais sans aucune poussée physique → reste au sol.
+
+  Solution : spawn direct depuis ce fichier SDF via ros_gz_sim create -file,
+  identique à l'approche du monde officiel :
+    /usr/share/gz/gz-sim8/worlds/multicopter_velocity_control.sdf
+
+  Plugins inclus :
+    - 4 × MulticopterMotorModel (FL/FR/BL/BR) — génèrent la force physique
+    - 1 × MulticopterVelocityControl            — contrôleur haut-niveau
+    - 1 × OdometryPublisher                    — publie /model/crazyflie/odometry
+    - 1 × Caméra orientée vers le bas           — publie /drone/camera/image_raw
+-->
+<sdf version="1.9">
+  <model name="crazyflie">
+
+    <!-- ======================== CORPS PRINCIPAL ======================== -->
+    <link name="drone_base_link">
+      <gravity>false</gravity>
+      <inertial>
+        <mass>0.027</mass>
+        <inertia>
+          <ixx>1.657e-5</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1.657e-5</iyy><iyz>0</iyz>
+          <izz>2.9e-5</izz>
+        </inertia>
+      </inertial>
+      <visual name="body_visual">
+        <geometry><box><size>0.06 0.06 0.03</size></box></geometry>
+        <material>
+          <ambient>0.08 0.08 0.10 1.0</ambient>
+          <diffuse>0.08 0.08 0.10 1.0</diffuse>
+        </material>
+      </visual>
+      <collision name="body_collision">
+        <geometry><box><size>0.06 0.06 0.03</size></box></geometry>
+      </collision>
+    </link>
+
+    <!-- ======================== ROTOR FL (Front-Left, CCW) ======================== -->
+    <link name="rotor_fl">
+      <pose>0.02333 0.02333 0.015 0 0 0</pose>
+      <inertial>
+        <mass>0.001</mass>
+        <inertia>
+          <ixx>1.33e-7</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1.33e-7</iyy><iyz>0</iyz>
+          <izz>2.65e-7</izz>
+        </inertia>
+      </inertial>
+      <visual name="rotor_fl_visual">
+        <geometry><cylinder><radius>0.023</radius><length>0.003</length></cylinder></geometry>
+        <material><ambient>0.3 0.3 0.8 0.7</ambient><diffuse>0.3 0.3 0.8 0.7</diffuse></material>
+      </visual>
+    </link>
+    <joint name="rotor_fl_joint" type="revolute">
+      <parent>drone_base_link</parent>
+      <child>rotor_fl</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1e16</lower><upper>1e16</upper><effort>100</effort><velocity>1000</velocity></limit>
+        <dynamics><damping>0.004</damping></dynamics>
+      </axis>
+    </joint>
+
+    <!-- ======================== ROTOR FR (Front-Right, CW) ======================== -->
+    <link name="rotor_fr">
+      <pose>0.02333 -0.02333 0.015 0 0 0</pose>
+      <inertial>
+        <mass>0.001</mass>
+        <inertia>
+          <ixx>1.33e-7</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1.33e-7</iyy><iyz>0</iyz>
+          <izz>2.65e-7</izz>
+        </inertia>
+      </inertial>
+      <visual name="rotor_fr_visual">
+        <geometry><cylinder><radius>0.023</radius><length>0.003</length></cylinder></geometry>
+        <material><ambient>0.3 0.3 0.8 0.7</ambient><diffuse>0.3 0.3 0.8 0.7</diffuse></material>
+      </visual>
+    </link>
+    <joint name="rotor_fr_joint" type="revolute">
+      <parent>drone_base_link</parent>
+      <child>rotor_fr</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1e16</lower><upper>1e16</upper><effort>100</effort><velocity>1000</velocity></limit>
+        <dynamics><damping>0.004</damping></dynamics>
+      </axis>
+    </joint>
+
+    <!-- ======================== ROTOR BL (Back-Left, CW) ======================== -->
+    <link name="rotor_bl">
+      <pose>-0.02333 0.02333 0.015 0 0 0</pose>
+      <inertial>
+        <mass>0.001</mass>
+        <inertia>
+          <ixx>1.33e-7</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1.33e-7</iyy><iyz>0</iyz>
+          <izz>2.65e-7</izz>
+        </inertia>
+      </inertial>
+      <visual name="rotor_bl_visual">
+        <geometry><cylinder><radius>0.023</radius><length>0.003</length></cylinder></geometry>
+        <material><ambient>0.3 0.3 0.8 0.7</ambient><diffuse>0.3 0.3 0.8 0.7</diffuse></material>
+      </visual>
+    </link>
+    <joint name="rotor_bl_joint" type="revolute">
+      <parent>drone_base_link</parent>
+      <child>rotor_bl</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1e16</lower><upper>1e16</upper><effort>100</effort><velocity>1000</velocity></limit>
+        <dynamics><damping>0.004</damping></dynamics>
+      </axis>
+    </joint>
+
+    <!-- ======================== ROTOR BR (Back-Right, CCW) ======================== -->
+    <link name="rotor_br">
+      <pose>-0.02333 -0.02333 0.015 0 0 0</pose>
+      <inertial>
+        <mass>0.001</mass>
+        <inertia>
+          <ixx>1.33e-7</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1.33e-7</iyy><iyz>0</iyz>
+          <izz>2.65e-7</izz>
+        </inertia>
+      </inertial>
+      <visual name="rotor_br_visual">
+        <geometry><cylinder><radius>0.023</radius><length>0.003</length></cylinder></geometry>
+        <material><ambient>0.3 0.3 0.8 0.7</ambient><diffuse>0.3 0.3 0.8 0.7</diffuse></material>
+      </visual>
+    </link>
+    <joint name="rotor_br_joint" type="revolute">
+      <parent>drone_base_link</parent>
+      <child>rotor_br</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit><lower>-1e16</lower><upper>1e16</upper><effort>100</effort><velocity>1000</velocity></limit>
+        <dynamics><damping>0.004</damping></dynamics>
+      </axis>
+    </joint>
+
+    <!-- ======================== CAMÉRA ORIENTÉE VERS LE BAS ======================== -->
+    <!--
+      SDF : le capteur caméra regarde selon l'axe +X du frame de son lien.
+      Pour regarder vers le bas (-Z monde), on oriente camera_link avec :
+        roll=pi/2 puis yaw=-pi/2  →  rpy="1.5708 0 -1.5708"
+      La pose est sous le corps : z = -(body_height/2 + 0.005) = -0.02
+    -->
+    <link name="camera_link">
+      <pose>0 0 -0.02 1.5708 0 -1.5708</pose>
+      <inertial>
+        <mass>0.001</mass>
+        <inertia><ixx>1e-8</ixx><ixy>0</ixy><ixz>0</ixz><iyy>1e-8</iyy><iyz>0</iyz><izz>1e-8</izz></inertia>
+      </inertial>
+      <visual name="camera_visual">
+        <geometry><box><size>0.012 0.012 0.005</size></box></geometry>
+        <material><ambient>0.2 0.2 0.2 1.0</ambient><diffuse>0.2 0.2 0.2 1.0</diffuse></material>
+      </visual>
+      <sensor name="drone_camera" type="camera">
+        <always_on>true</always_on>
+        <update_rate>30</update_rate>
+        <visualize>true</visualize>
+        <topic>/drone/camera/image_raw</topic>
+        <camera>
+          <horizontal_fov>1.047</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip><near>0.01</near><far>20</far></clip>
+          <noise><type>gaussian</type><mean>0</mean><stddev>0.005</stddev></noise>
+        </camera>
+      </sensor>
+    </link>
+    <joint name="camera_joint" type="fixed">
+      <parent>drone_base_link</parent>
+      <child>camera_link</child>
+    </joint>
+
+    <!-- ======================== CONTRÔLEUR DE VOL VELOCITY CONTROL ======================== -->
+    <!--
+      Contrôleur de vitesse cinématique-dynamique natif Gazebo Sim 8.
+      Souscrit directement à /crazyflie/cmd_vel (Twist) et applique
+      exactement (vx, vy, vz, wz) au drone.
+      Permet un décollage, un vol stationnaire (MAPPING) et un suivi ArUco
+      parfaitement stables et robustes.
+    -->
+    <plugin filename="gz-sim-velocity-control-system"
+            name="gz::sim::systems::VelocityControl">
+      <link_name>drone_base_link</link_name>
+      <topic>/crazyflie/cmd_vel</topic>
+    </plugin>
+
+    <!-- ======================== POSE PUBLISHER ======================== -->
+    <!--
+      Publie la pose réelle du drone sur /model/crazyflie/pose.
+      Bridgé en ROS 2 geometry_msgs/msg/Pose, utilisé par drone_mapper_node
+      pour le feedback d'altitude réel.
+    -->
+    <plugin filename="gz-sim-pose-publisher-system"
+            name="gz::sim::systems::PosePublisher">
+      <publish_link_pose>false</publish_link_pose>
+      <publish_sensor_pose>false</publish_sensor_pose>
+      <publish_collision_pose>false</publish_collision_pose>
+      <publish_visual_pose>false</publish_visual_pose>
+      <publish_nested_model_pose>false</publish_nested_model_pose>
+      <publish_model_pose>true</publish_model_pose>
+      <use_pose_vector_msg>false</use_pose_vector_msg>
+      <update_frequency>30</update_frequency>
+    </plugin>
+
+  </model>
+</sdf>
