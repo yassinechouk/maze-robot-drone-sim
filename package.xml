@@ -7,8 +7,11 @@
     Simulation Gazebo Harmonic + ROS2 Jazzy d'un robot différentiel (0.25x0.25m)
     naviguant dans un labyrinthe (cellules 0.4x0.4m), avec IMU et 2 encodeurs
     (via ros2_control diff_drive_controller), du start au goal via A*.
-    Drone Crazyflie optionnel (spawn_drone:=true) pour cartographie top-down
-    et suivi ArUco temps-réel du robot.
+    Le drone Crazyflie cartographie le labyrinthe par vision (dimensions
+    détectées automatiquement), publie la carte en nav_msgs/OccupancyGrid, puis
+    suit le robot au marqueur ArUco. Le robot planifie son propre A* sur la
+    carte reçue et la suit avec un contrôleur prédictif CasADi/IPOPT tenant
+    compte des murs.
   </description>
   <maintainer email="you@example.com">Yassine</maintainer>
   <license>MIT</license>
@@ -34,12 +37,16 @@
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>tf_transformations</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
 
   <!-- Vision (ArUco + cv_bridge) -->
   <exec_depend>cv_bridge</exec_depend>
   <!-- python3-opencv-contrib (cv2.aruco) doit être installé via pip :
        pip install opencv-contrib-python>=4.5
        ou via apt : python3-opencv (selon la version disponible) -->
+
+  <!-- Commande prédictive : CasADi n'a pas de clé rosdep, à installer via pip.
+       Voir le README (section Dépendances) pour la commande exacte. -->
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

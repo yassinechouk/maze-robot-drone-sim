@@ -35,9 +35,9 @@ setup(
     maintainer="Yassine",
     maintainer_email="you@example.com",
     description=(
-        "Simulation Gazebo Harmonic + ROS2 Jazzy d'un robot différentiel "
-        "naviguant dans un labyrinthe (A*), avec IMU, encodeurs, marqueur ArUco "
-        "et drone Crazyflie optionnel (cartographie + suivi)."
+        "Simulation Gazebo Harmonic + ROS2 Jazzy : un drone Crazyflie cartographie "
+        "un labyrinthe par vision et transmet la carte à un robot différentiel qui "
+        "planifie son A* et la suit en commande prédictive (CasADi)."
     ),
     license="MIT",
     tests_require=["pytest"],
@@ -46,6 +46,7 @@ setup(
             "maze_navigator_node = maze_robot_sim.maze_navigator_node:main",
             "maze_world_generator = maze_robot_sim.maze_world_generator:main",
             "drone_mapper_node = maze_robot_sim.drone_mapper_node:main",
+            "maze_map_validator = maze_robot_sim.maze_map_validator:main",
         ],
     },
 )

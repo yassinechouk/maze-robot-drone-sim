@@ -158,7 +158,16 @@
   <joint name="imu_joint" type="fixed">
     <parent link="chassis_link"/>
     <child link="imu_link"/>
-    <origin xyz="0 0 ${chassis_height/2.0}" rpy="0 0 0"/>
+    <!--
+      L'IMU est logée AU CENTRE du châssis, pas sur sa face supérieure.
+      Posée sur le dessus, sa boîte visuelle de 2 cm dépassait de 4 mm au-dessus
+      du plan du marqueur ArUco et se retrouvait pile en son centre : le drone
+      voyait alors un carré rouge au milieu du motif, les bits étaient corrompus
+      et le marqueur n'était reconnu qu'une image sur deux. Au centre, elle est
+      entièrement enfermée dans le châssis — et c'est de toute façon la place
+      naturelle d'une centrale inertielle.
+    -->
+    <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
 
   <!-- ============================ ARUCO MARKER (top) ============================ -->
