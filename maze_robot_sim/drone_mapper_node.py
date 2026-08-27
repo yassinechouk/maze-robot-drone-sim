@@ -107,6 +107,8 @@ class DroneMapperNode(Node):
         self.cmd_pub    = self.create_publisher(Twist,  cmd_topic,               10)
         self.enable_pub = self.create_publisher(Bool,   enable_topic,            10)
         self.status_pub = self.create_publisher(String, p("status_topic").value, 10)
+        # Signal « feu vert » envoyé au robot quand le drone est stable en l'air
+        self.ready_pub  = self.create_publisher(String, "/drone/mapper/ready",   10)
 
         # ── Subscribers ──
         img_qos = QoSProfile(
@@ -294,6 +296,9 @@ class DroneMapperNode(Node):
                 self.get_logger().info(
                     f"[Drone] Cartographie terminée ({self.hover_sec:.1f}s). "
                     f"Passage en TRACKING à {self.tracking_alt:.2f} m.")
+                # ── Feu vert au robot : il peut commencer à naviguer ──
+                self.ready_pub.publish(String(data="READY"))
+                self.get_logger().info("[Drone] Signal READY envoyé au robot.")
                 self._enter_state(STATE_TRACKING)
             return
 
@@ -319,13 +324,31 @@ class DroneMapperNode(Node):
                 self._enter_state(STATE_DONE)
                 return
 
-            next_alt = max(self.landing_alt, self._real_alt - self.landing_spd)
+            # Centrage XY sur ArUco, mais on force vz négatif directement
+            # (on n'utilise plus _do_tracking pour l'altitude car la deadband
+            # de 0.1 m absorberait le tiny step de 0.05 m et vz resterait 0)
             self._pub_status("LANDING")
-            self._do_tracking(target_alt=next_alt)
+            if self._last_frame is not None:
+                ex, ey = self._detect_aruco_error(self._last_frame)
+                if ex is not None:
+                    vx = float(np.clip(self.kp_xy * ey, -self.max_xy, self.max_xy))
+                    vy = float(np.clip(self.kp_xy * ex, -self.max_xy, self.max_xy))
+                else:
+                    vx, vy = 0.0, 0.0
+            else:
+                vx, vy = 0.0, 0.0
+            # Descente à vitesse constante, sans deadband
+            vz = -self.landing_spd
+            self._pub_cmd(vx, vy, vz)
             return
 
-        # ── DONE ──
+        # ── DONE : couper les moteurs une bonne fois pour toutes ──
         if self.state == STATE_DONE:
+            # Désactiver le contrôleur Gazebo pour que le drone tombe sur le robot
+            disable_msg = Bool()
+            disable_msg.data = False
+            self.enable_pub.publish(disable_msg)
+            # On publie une cmd nulle par sécurité
             self._pub_cmd(0.0, 0.0, 0.0)
             self._pub_status("DONE")
 

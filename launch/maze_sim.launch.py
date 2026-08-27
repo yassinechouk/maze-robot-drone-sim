@@ -85,7 +85,7 @@ def generate_launch_description():
         "drone_y",
         default_value=PythonExpression(['str((int(', rows, ') - 1) * float(', cell_size, '))'])
     )
-    declare_drone_z = DeclareLaunchArgument("drone_z", default_value="1.0")
+    declare_drone_z = DeclareLaunchArgument("drone_z", default_value="0.1")
 
     # ── Chemins ──
     generated_world_path    = os.path.join(pkg_share, "worlds", "generated_maze.sdf")
@@ -267,12 +267,19 @@ def generate_launch_description():
         executable="maze_navigator_node",
         output="screen",
         parameters=[{
-            "maze_json":     generated_meta_path,
-            "odom_topic":    "/diff_drive_controller/odom",
-            "cmd_vel_topic": "/diff_drive_controller/cmd_vel",
-            "imu_topic":     "/imu",
-            "invert_angular": invert_angular,
-            "use_sim_time":  True,
+            "maze_json":               generated_meta_path,
+            "odom_topic":              "/diff_drive_controller/odom",
+            "cmd_vel_topic":           "/diff_drive_controller/cmd_vel",
+            "imu_topic":               "/imu",
+            "invert_angular":          invert_angular,
+            "use_sim_time":            True,
+            # ── Gains de navigation ajustés pour un parcours smooth ──
+            "linear_kp":              0.5,    # était 0.9 — décélère plus tôt
+            "angular_kp":             1.2,    # était 1.8 — virages plus doux
+            "max_linear_speed":       0.18,   # était 0.3 — vitesse max réduite
+            "max_angular_speed":      1.4,    # était 2.0 — rotation plus lente
+            "goal_tolerance":         0.10,   # 10cm : agit comme un "lookahead" pur pursuit pour enchaîner les cellules de façon fluide
+            "align_tolerance_rad":    0.20,   # était 0.35 — commence à avancer plus tôt/précisément
         }],
     )
 

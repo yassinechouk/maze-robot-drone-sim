@@ -52,6 +52,7 @@ def wrap_angle(a):
 
 class MazeNavigatorNode(Node):
     # États internes de la machine à états
+    STATE_WAIT_DRONE       = "wait_drone"
     STATE_WAIT_ODOM        = "wait_odom"
     STATE_CALIBRATE_SPIN_UP = "calibrate_spin_up"
     STATE_CALIBRATE_MEASURE = "calibrate_measure"
@@ -100,21 +101,25 @@ class MazeNavigatorNode(Node):
         invert_param = self.get_parameter("invert_angular").get_parameter_value().string_value.strip().lower()
         if invert_param in ("true", "1", "yes"):
             self.angular_sign      = -1.0
-            self.state             = self.STATE_WAIT_ODOM
+            self.state             = self.STATE_WAIT_DRONE
             self._skip_calibration = True
             self.get_logger().info("invert_angular forcé à TRUE (angular_sign=-1) — calibration auto désactivée.")
         elif invert_param in ("false", "0", "no"):
             self.angular_sign      = 1.0
-            self.state             = self.STATE_WAIT_ODOM
+            self.state             = self.STATE_WAIT_DRONE
             self._skip_calibration = True
             self.get_logger().info("invert_angular forcé à FALSE (angular_sign=+1) — calibration auto désactivée.")
         else:
             self.angular_sign      = 1.0
-            self.state             = self.STATE_WAIT_ODOM
+            self.state             = self.STATE_WAIT_DRONE
             self._skip_calibration = False
 
         self._calib_start_yaw  = None
         self._calib_start_time = None
+
+        # Drone sync
+        self.drone_ready = False
+        self.create_subscription(String, "/drone/mapper/ready", self.drone_ready_cb, 10)
 
         cmd_topic  = self.get_parameter("cmd_vel_topic").get_parameter_value().string_value
         odom_topic = self.get_parameter("odom_topic").get_parameter_value().string_value
@@ -155,6 +160,11 @@ class MazeNavigatorNode(Node):
                 "'Publisher count: 1'. Le robot ne bougera pas tant que "
                 "l'odométrie n'arrive pas.")
 
+    def drone_ready_cb(self, msg: String):
+        if msg.data == "READY" and not self.drone_ready:
+            self.drone_ready = True
+            self.get_logger().info("Drone prêt reçu, on peut démarrer.")
+
     def odom_cb(self, msg: Odometry):
         start_x, start_y = self.waypoints[0]
         self.pose_x = start_x + msg.pose.pose.position.x
@@ -182,6 +192,12 @@ class MazeNavigatorNode(Node):
 
     def control_loop(self):
         now = self.get_clock().now()
+
+        if self.state == self.STATE_WAIT_DRONE:
+            if not self.drone_ready:
+                return
+            self.state = self.STATE_WAIT_ODOM
+            return
 
         if self.state == self.STATE_WAIT_ODOM:
             if not self.have_odom:
